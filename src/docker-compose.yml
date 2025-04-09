@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  strategy-manager:
+    build: .
+    container_name: strategy-manager
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - MONGODB_URI=mongodb://mongo:27017/trading-strategies
+      - JWT_SECRET=${JWT_SECRET}
+      - DOCKER_HOST=/var/run/docker.sock
+      - WORKER_IMAGE=strategy-executor:latest
+      - WORKER_NETWORK=trading-network
+      - MARKET_DATA_SERVICE_URL=http://market-data-service:3001
+      - ORDER_SERVICE_URL=http://order-service:3002
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3003
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./logs:/usr/src/app/logs
+    depends_on:
+      - mongo
+    networks:
+      - trading-network
+
+  mongo:
+    image: mongo:6
+    container_name: mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - trading-network
+
+
+  strategy-executor:
+    build:
+      context: ./strategy-executor
+      dockerfile: Dockerfile
+    image: strategy-executor:latest
+    container_name: strategy-executor-template
+    restart: "no"
+    deploy:
+      replicas: 0
+    environment:
+      - STRATEGY_ID=template
+      - USER_ID=template
+      - MARKET_DATA_SERVICE_URL=http://market-data-service:3001
+      - ORDER_SERVICE_URL=http://order-service:3002
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3003
+    networks:
+      - trading-network
+
+  # Placeholder services for the rest of the ecosystem
+  market-data-service:
+    image: nginx:alpine
+    container_name: market-data-service-placeholder
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    networks:
+      - trading-network
+
+  order-service:
+    image: nginx:alpine
+    container_name: order-service-placeholder
+    restart: unless-stopped
+    ports:
+      - "3002:80"
+    networks:
+      - trading-network
+
+  notification-service:
+    image: nginx:alpine
+    container_name: notification-service-placeholder
+    restart: unless-stopped
+    ports:
+      - "3003:80"
+    networks:
+      - trading-network
+
+volumes:
+  mongo-data:
+
+networks:
+  trading-network:
+    driver: bridge
